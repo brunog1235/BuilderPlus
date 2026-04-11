@@ -1,0 +1,67 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <Target Name="CopyToMods" AfterTargets="Build">
+    <Copy
+      SourceFiles="$(OutputPath)BetterBuilder.dll"
+      DestinationFolder="D:\Games\Kitten Space Agency\Content\BetterBuilder\"
+      OverwriteReadOnlyFiles="true"
+    />
+  </Target>
+
+  <ItemGroup>
+    <Reference Include="StarMap.API">
+      <HintPath>D:\OneDrive\000 - KSAModding\StarMapLauncher-0.4.5\StarMap.API.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="StarMap.Types">
+      <HintPath>D:\OneDrive\000 - KSAModding\StarMapLauncher-0.4.5\StarMap.Types.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>D:\OneDrive\000 - KSAModding\StarMapLauncher-0.4.5\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.ImGui">
+      <HintPath>D:\Games\Kitten Space Agency\Brutal.ImGui.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.ImGui.Abstractions">
+      <HintPath>D:\Games\Kitten Space Agency\Brutal.ImGui.Abstractions.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="KSA">
+      <HintPath>D:\Games\Kitten Space Agency\KSA.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.Core.Numerics">
+  <HintPath>D:\Games\Kitten Space Agency\Brutal.Core.Numerics.dll</HintPath>
+  <Private>false</Private>
+  </Reference>
+  <Reference Include="Brutal.Core.Common">
+    <HintPath>D:\Games\Kitten Space Agency\Brutal.Core.Common.dll</HintPath>
+    <Private>false</Private>
+  </Reference>
+  <Reference Include="Brutal.ImGui.Extensions">
+    <HintPath>D:\Games\Kitten Space Agency\Brutal.ImGui.Extensions.dll</HintPath>
+    <Private>false</Private>
+  </Reference>
+  <Reference Include="Brutal.Vulkan">
+    <HintPath>D:\Games\Kitten Space Agency\Brutal.Vulkan.dll</HintPath>
+    <Private>false</Private>
+  </Reference>
+  <Reference Include="Brutal.Core.Strings">
+    <HintPath>D:\Games\Kitten Space Agency\Brutal.Core.Strings.dll</HintPath>
+    <Private>false</Private>
+  </Reference>
+  <Reference Include="Brutal.Glfw">
+    <HintPath>D:\Games\Kitten Space Agency\Brutal.Glfw.dll</HintPath>
+    <Private>false</Private>
+  </Reference>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,10 @@
+[mod]
+id = "BetterBuilder"
+name = "BetterBuilder"
+version = "0.1.0"
+description = "Replaces the vehicle editor UI with a KSP2-style interface featuring a parts catalogue, toolbar, stages, sequences, and launch panel."
+authors = ["brunog___"]
+license = "MIT"
+
+[dependencies]
+starmap = ">=0.4.5"
