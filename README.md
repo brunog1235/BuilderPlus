@@ -12,26 +12,20 @@ Replaces the vehicle editor UI in Kitten Space Agency with a KSP2-style interfac
 - Launch panel with body/location selection
 - Click-to-grab parts (no need to hold click)
 - Delete parts by clicking the catalogue while holding a part
-<<<<<<< HEAD
-=======
 - Save and load vehicles (option to delete saved vehicles)
 - Undo and redo key bindings and buttons
 - Removed "Simulation Paused" alert on VAB
 - Visual - Rounded the corners of elements to make it more visually pleasing
->>>>>>> efc8c82 (v0.1.1 release)
 
 ## Planned
 - Right-click to move parts between stages
 - Sequence panel icons
 - Visual polish
-<<<<<<< HEAD
-=======
 - Middle Mouse to Pan around editor
 - Modifier (like shift) for the Scale Gizmo to scale in multiple dimensions
 - Delete key to remove parts
 - SVG better Icons for categories (Currently Font Awesome is being used, please install it in your system as I think is needed)
 - Drag and drop to arrenge stages
->>>>>>> efc8c82 (v0.1.1 release)
 
 ## Dependencies
 - [StarMap Mod Loader](https://github.com/StarMapLoader/StarMap) >= 0.4.5
@@ -47,9 +41,4 @@ enabled = true
 3. Launch via StarMap
 
 ## License
-<<<<<<< HEAD
 MIT
-
-=======
-MIT
->>>>>>> efc8c82 (v0.1.1 release)

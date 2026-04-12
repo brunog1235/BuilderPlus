@@ -1,0 +1,13 @@
+D:\OneDrive\000 - KSAModding\BetterBuilder\bin\Debug\net10.0\BetterBuilder.deps.json
+D:\OneDrive\000 - KSAModding\BetterBuilder\bin\Debug\net10.0\BetterBuilder.dll
+D:\OneDrive\000 - KSAModding\BetterBuilder\bin\Debug\net10.0\BetterBuilder.pdb
+D:\OneDrive\000 - KSAModding\BetterBuilder\obj\Debug\net10.0\BetterBuilder.csproj.AssemblyReference.cache
+D:\OneDrive\000 - KSAModding\BetterBuilder\obj\Debug\net10.0\BetterBuilder.GeneratedMSBuildEditorConfig.editorconfig
+D:\OneDrive\000 - KSAModding\BetterBuilder\obj\Debug\net10.0\BetterBuilder.AssemblyInfoInputs.cache
+D:\OneDrive\000 - KSAModding\BetterBuilder\obj\Debug\net10.0\BetterBuilder.AssemblyInfo.cs
+D:\OneDrive\000 - KSAModding\BetterBuilder\obj\Debug\net10.0\BetterBuilder.csproj.CoreCompileInputs.cache
+D:\OneDrive\000 - KSAModding\BetterBuilder\obj\Debug\net10.0\BetterBuilder.sourcelink.json
+D:\OneDrive\000 - KSAModding\BetterBuilder\obj\Debug\net10.0\BetterBuilder.dll
+D:\OneDrive\000 - KSAModding\BetterBuilder\obj\Debug\net10.0\refint\BetterBuilder.dll
+D:\OneDrive\000 - KSAModding\BetterBuilder\obj\Debug\net10.0\BetterBuilder.pdb
+D:\OneDrive\000 - KSAModding\BetterBuilder\obj\Debug\net10.0\ref\BetterBuilder.dll

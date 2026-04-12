@@ -6,26 +6,26 @@ using KSA;
 using System.Reflection;
 using Brutal.GlfwApi;
 
-namespace BetterBuilder;
+namespace BuilderPlus;
 
 [StarMapMod]
-public class BetterBuilderMod
+public class BuilderPlusMod
 {
-    private static Harmony _harmony = new Harmony("com.betterbuilder.mod");
+    private static Harmony _harmony = new Harmony("com.builderplus.mod");
 
     [StarMapImmediateLoad]
     public void OnLoad(KSA.Mod mod)
     {
-        Console.WriteLine("[BetterBuilder] Cargando mod...");
+        Console.WriteLine("[BuilderPlus] Cargando mod...");
         _harmony.PatchAll();
-        Console.WriteLine("[BetterBuilder] Patches aplicados!");
+        Console.WriteLine("[BuilderPlus] Patches aplicados!");
     }
 
     [StarMapUnload]
     public void OnUnload()
     {
-        _harmony.UnpatchAll("com.betterbuilder.mod");
-        Console.WriteLine("[BetterBuilder] Mod descargado.");
+        _harmony.UnpatchAll("com.builderplus.mod");
+        Console.WriteLine("[BuilderPlus] Mod descargado.");
     }
 }
 
@@ -47,7 +47,7 @@ public class HideOriginalPartWindow
         }
         catch (Exception e)
         {
-            Console.WriteLine($"[BetterBuilder] Error: {e.Message}");
+            Console.WriteLine($"[BuilderPlus] Error: {e.Message}");
         }
     }
 }
@@ -94,17 +94,17 @@ public class LoadIconFont
                 config.RasterizerDensity = (float)GameSettings.GetFontDensity() / 100f;
                 
                 fonts.AddFontFromFileTTF(
-                    "Content/BetterBuilder/fa-solid-900.ttf",
+                    "Content/BuilderPlus/fa-solid-900.ttf",
                     GameSettings.GetFontSize(),
                     &config,
                     new ReadOnlySpan<ushort>(rangesPtr, 3));
             }
             
-            Console.WriteLine("[BetterBuilder] Icon font loaded!");
+            Console.WriteLine("[BuilderPlus] Icon font loaded!");
         }
         catch (Exception e)
         {
-            Console.WriteLine($"[BetterBuilder] Error loading icon font: {e.Message}");
+            Console.WriteLine($"[BuilderPlus] Error loading icon font: {e.Message}");
         }
     }
 }
@@ -282,7 +282,7 @@ public class VehicleEditorUIPatch
         }
         catch (Exception e)
         {
-            Console.WriteLine($"[BetterBuilder] Error en Prefix: {e.Message}");
+            Console.WriteLine($"[BuilderPlus] Error en Prefix: {e.Message}");
         }
 
         return false;
@@ -461,7 +461,7 @@ public class VehicleEditorUIPatch
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new float2(0f, 0f));
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing,   new float2(2f, 2f));
 
-        ImGui.Begin("##BetterBuilderParts", flags);
+        ImGui.Begin("##BuilderPlusParts", flags);
         
         // Delete parts when clicking catalogue
         if (ImGui.IsWindowHovered(ImGuiHoveredFlags.ChildWindows) 

@@ -8,8 +8,8 @@
 
   <Target Name="CopyToMods" AfterTargets="Build">
     <Copy
-      SourceFiles="$(OutputPath)BetterBuilder.dll"
-      DestinationFolder="D:\Games\Kitten Space Agency\Content\BetterBuilder\"
+      SourceFiles="$(OutputPath)BuilderPlus.dll"
+      DestinationFolder="D:\Games\Kitten Space Agency\Content\BuilderPlus\"
       OverwriteReadOnlyFiles="true"
     />
   </Target>
