@@ -13,10 +13,12 @@ namespace BuilderPlus;
 public class BuilderPlusMod
 {
     private static Harmony _harmony = new Harmony("com.builderplus.mod");
+    public static string ModPath = "";
 
     [StarMapImmediateLoad]
     public void OnLoad(KSA.Mod mod)
     {
+        ModPath = mod.DirectoryPath;
         _harmony.PatchAll();
     }
 
@@ -139,44 +141,6 @@ public class HideOriginalSequenceWindow
     static bool Prefix() => false;
 }
 
-[HarmonyPatch(typeof(FontManager), nameof(FontManager.RegenerateFonts))]
-public class LoadIconFont
-{
-    static unsafe void Postfix()
-    {
-        try
-        {
-            ImFontAtlasPtr fonts = ImGui.GetIO().Fonts;
-            
-            ushort[] ranges = new ushort[] { 0xe000, 0xf8ff, 0 };
-            
-            fixed (ushort* rangesPtr = ranges)
-            {
-                ImFontConfig config = new ImFontConfig();
-                config.MergeMode = false; // Fuente separada
-                config.SizePixels = GameSettings.GetFontSize();
-                config.GlyphMaxAdvanceX = float.MaxValue;
-                config.RasterizerMultiply = 1f;
-                config.RasterizerDensity = (float)GameSettings.GetFontDensity() / 100f;
-                
-                var fontPtr = fonts.AddFontFromFileTTF(
-                    "Content/BuilderPlus/fa-solid-900.ttf",
-                    GameSettings.GetFontSize(),
-                    &config,
-                    new ReadOnlySpan<ushort>(rangesPtr, 3));
-                    
-                FontManager.Fonts["fa-solid-900"] = fontPtr;
-            }
-            
-            Console.WriteLine("[BuilderPlus] Icon font loaded!");
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine($"[BuilderPlus] Error loading icon font: {e.Message}");
-        }
-    }
-}
-
 [HarmonyPatch(typeof(VehicleEditor), nameof(VehicleEditor.UpdateSelected))]
 public class UniformScalePatch
 {
@@ -242,15 +206,12 @@ public class StickyGrabPatch
                 if (_spawnSkips == 0)
                 {
                     IsSpawning = false;
-                    
-                    Console.WriteLine($"[BP] spawnSkips=0, isFirstPart={_isFirstPart}");
-                    
+                                        
                     if (_isFirstPart && Program.Editor?.EditingSpace.Parts?.Root != null)
                     {
                         var root = Program.Editor.EditingSpace.Parts.Root;
                         Program.Editor.CameraOffset = root.PositionParentAsmb.Transform(Program.Editor.EditingSpace.Asmb2Ecl);
                         _isFirstPart = false;
-                        Console.WriteLine("[BP] Camera centered from spawn!");
                     }
                 }
                 return;
@@ -808,8 +769,48 @@ public class VehicleEditorUIPatch
         if (_iconFont.IsNull())
         {
             FontManager.Fonts.TryGetValue("fa-solid-900", out _iconFont);
+            
             if (_iconFont.IsNull())
-                Console.WriteLine("[BuilderPlus] Warning: icon font not found!");
+            {
+                try
+                {
+                    var fontPath = Path.Combine(Directory.GetCurrentDirectory(), BuilderPlusMod.ModPath, "fa-solid-900.font");
+                    if (!File.Exists(fontPath))
+                        fontPath = "Content/BuilderPlus/fa-solid-900.font";
+                    
+                    if (File.Exists(fontPath))
+                    {
+                        unsafe
+                        {
+                            ImFontAtlasPtr fonts = ImGui.GetIO().Fonts;
+                            ushort[] ranges = new ushort[] { 0xe000, 0xf8ff, 0 };
+                            fixed (ushort* rangesPtr = ranges)
+                            {
+                                ImFontConfig config = new ImFontConfig();
+                                config.MergeMode = false;
+                                config.SizePixels = GameSettings.GetFontSize();
+                                config.GlyphMaxAdvanceX = float.MaxValue;
+                                config.RasterizerMultiply = 1f;
+                                config.RasterizerDensity = (float)GameSettings.GetFontDensity() / 100f;
+                                
+                                _iconFont = fonts.AddFontFromFileTTF(
+                                    fontPath,
+                                    GameSettings.GetFontSize(),
+                                    &config,
+                                    new ReadOnlySpan<ushort>(rangesPtr, 3));
+                                
+                                FontManager.Fonts["fa-solid-900"] = _iconFont;
+                            }
+                        }
+                    }
+                    else
+                    {
+                    }
+                }
+                catch (Exception e)
+                {
+                }
+            }
         }
 
         bool hasIconFont = !_iconFont.IsNull();
