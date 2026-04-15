@@ -5,7 +5,6 @@ using Brutal.Numerics;
 using KSA;
 using System.Reflection;
 using Brutal.GlfwApi;
-using System.Runtime.CompilerServices;
 
 namespace BuilderPlus;
 
@@ -58,12 +57,12 @@ public class HideOriginalStageWindow
     static bool Prefix() => false;
 }
 
-[HarmonyPatch(typeof(Universe), nameof(Universe.DrawAlerts))]
-public class HideAlertsInEditor
+[HarmonyPatch(typeof(Alert), nameof(Alert.DrawAll))]
+class HideAlertsInEditor
 {
     static bool Prefix()
     {
-        return Program.Editor == null;
+        return false;
     }
 }
 
@@ -290,6 +289,8 @@ public class VehicleEditorUIPatch
     static string _searchText = "";
     static bool _showStages = false;
     static ImFontPtr _iconFont = default;
+    static ImFontPtr _pixelFont = default;
+    static bool _pixelFontLoaded = false;
     static bool _initialized = false;
     static bool _showSavePopup = false;
     static bool _showLoadPanel = false;
@@ -305,6 +306,10 @@ public class VehicleEditorUIPatch
     static List<PartInstance> _undoStack = new List<PartInstance>();
     static List<PartInstance> _redoStack = new List<PartInstance>();
     static bool _snapshotPending = true;
+    static Part _selectedSubPart = null;
+    static MenuTRSHolder _subPartTRS;
+    static bool _subPartWindowOpen = false;
+
     static readonly Dictionary<string, string> CategoryIcons = new()
     {
         { "All",         "\uf005" },
@@ -328,12 +333,89 @@ public class VehicleEditorUIPatch
         _initialized = false;
     }
 
+    static Dictionary<string, string> _partNames = new();
+    static bool _partNamesLoaded = false;
+
+    static void LoadPartNames()
+    {
+        if (_partNamesLoaded) return;
+        _partNamesLoaded = true;
+        
+        try
+        {
+            var path = Path.Combine(Directory.GetCurrentDirectory(), BuilderPlusMod.ModPath, "partnames.json");
+
+            Console.WriteLine($"[BP] partnames path: '{path}'");
+            Console.WriteLine($"[BP] exists: {File.Exists(path)}");
+            
+            if (File.Exists(path))
+            {
+                var json = File.ReadAllText(path);
+                var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+                if (dict != null) _partNames = dict;
+            }
+            else
+            {
+                Console.WriteLine($"[BuilderPlus] partnames.json not found");
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"[BuilderPlus] Error loading part names: {e.Message}");
+        }
+    }
+
+    static string GetFriendlyName(PartTemplate part)
+    {
+        if (_partNames.TryGetValue(part.Id, out var name))
+            return name;
+        if (part.DisplayName != part.Id)
+            return part.DisplayName;
+        return part.Id;
+    }
+
+    static void ApplyHudTheme()
+    {
+        var style = ImGui.GetStyle();
+
+        style.WindowRounding = 10f;
+        style.ChildRounding  = 8f;
+        style.FrameRounding  = 6f;
+        style.WindowBorderSize = 1.5f;
+
+        style.WindowPadding = new float2(10f, 10f);
+        style.ItemSpacing   = new float2(6f, 6f);
+
+        var colors = style.Colors;
+
+        colors[(int)ImGuiCol.WindowBg]      = new float4(0f, 0f, 0f, 0.25f);
+        colors[(int)ImGuiCol.ChildBg]       = new float4(0f, 0f, 0f, 0f);
+        colors[(int)ImGuiCol.FrameBg]       = new float4(0f, 0f, 0f, 0.2f);
+
+        colors[(int)ImGuiCol.Button]        = new float4(0f, 0f, 0f, 0f);
+        colors[(int)ImGuiCol.ButtonHovered] = new float4(0.2f, 0.6f, 1f, 0.2f);
+        colors[(int)ImGuiCol.ButtonActive]  = new float4(0.2f, 0.6f, 1f, 0.4f);
+
+        colors[(int)ImGuiCol.Header]        = new float4(0.2f, 0.6f, 1f, 0.15f);
+        colors[(int)ImGuiCol.HeaderHovered] = new float4(0.2f, 0.6f, 1f, 0.3f);
+        colors[(int)ImGuiCol.HeaderActive]  = new float4(0.2f, 0.6f, 1f, 0.5f);
+
+        colors[(int)ImGuiCol.Text]          = new float4(0.7f, 0.9f, 1f, 1f);
+
+        colors[(int)ImGuiCol.Border]        = new float4(0.2f, 0.6f, 1f, 0.6f);
+
+        colors[(int)ImGuiCol.ScrollbarBg]   = new float4(0f, 0f, 0f, 0f);
+        colors[(int)ImGuiCol.ScrollbarGrab] = new float4(0.2f, 0.6f, 1f, 0.6f);
+    }
+
     static bool Prefix(VehicleEditor __instance, Viewport inViewport)
     {
         if (!_initialized)
         {
             __instance.Connecting = true;
             _initialized = true;
+            LoadPartNames();
+            LoadPixelFont();
         }
 
         // Keyboard shortcuts
@@ -498,15 +580,24 @@ public class VehicleEditorUIPatch
                 TakeSnapshot(__instance);
         }
             
+        bool usedFont = false;
+
         try
         {
             double4x4 matrixVehicleAsmb2Ego = __instance.EditingSpace.GetMatrixAsmb2Ego(inViewport.GetCamera());
 
+            ApplyHudTheme(); 
+            PushPixelFont(out usedFont);
+
             DrawPartsPanel(__instance, inViewport);
             DrawToolbar(__instance, inViewport);
 
-            for (int i = __instance.PartMenus.Count - 1; i >= 0; i--)
-                __instance.DrawPartUi(i, inViewport);
+           // Only keep one menu open
+            while (__instance.PartMenus.Count > 1)
+                __instance.PartMenus.RemoveAt(0);
+
+            if (__instance.PartMenus.Count > 0)
+                DrawCustomPartMenu(__instance, 0, inViewport);
 
             for (int i = __instance.SubPartMenus.Count - 1; i >= 0; i--)
                 __instance.DrawSubPartUi(i, inViewport);
@@ -524,10 +615,48 @@ public class VehicleEditorUIPatch
                 DrawSavePopup(__instance);
             if (_showLoadPanel)
                 DrawLoadPanel(__instance, inViewport);
+
+            // Ventana flotante de SubPart
+            if (_subPartWindowOpen && _selectedSubPart != null)
+            {
+                double4x4 matrixAsmb2Ego = __instance.EditingSpace.GetMatrixAsmb2Ego(inViewport.GetCamera());
+                double3 posEgo = _selectedSubPart.PositionEgo(in matrixAsmb2Ego);
+
+                var screenPos = inViewport.Position + inViewport.GetCamera().EgoToScreen(posEgo);
+
+                ImGui.SetNextWindowPos(screenPos, ImGuiCond.Appearing);
+                ImGui.SetNextWindowSize(new float2(280f, 0f), ImGuiCond.Appearing);
+
+                bool open = _subPartWindowOpen;
+
+                ImGui.Begin($"SubPart##subpart_{_selectedSubPart.InstanceId}", ref open);
+
+                DrawSubPartTRS();
+
+                ImGui.End();
+
+                if (!open)
+                {
+                    if (_selectedSubPart != null)
+                        _selectedSubPart.Highlighted = false;
+
+                    _selectedSubPart = null;
+                    _subPartWindowOpen = false;
+                }
+            }
+
+            if (_selectedSubPart != null)
+            {
+                _selectedSubPart.Highlighted = true;
+            }
         }
         catch (Exception e)
         {
             Console.WriteLine($"[BuilderPlus] Error en Prefix: {e.Message}");
+        }
+        finally
+        {
+            PopFontSafe(usedFont);
         }
 
         return false;
@@ -559,6 +688,69 @@ public class VehicleEditorUIPatch
     {
         ImGui.PopStyleVar(3);
         ImGui.PopStyleColor(14);
+    }
+
+    static void LoadPixelFont()
+    {
+        if (_pixelFontLoaded) return;
+        _pixelFontLoaded = true;
+
+        try
+        {
+            var path = Path.Combine(
+                Directory.GetCurrentDirectory(),
+                BuilderPlusMod.ModPath,
+                "PixelCode.font"
+            );
+
+            if (!File.Exists(path))
+            {
+                Console.WriteLine("[BuilderPlus] PixelCode not found");
+                return;
+            }
+
+            var io = ImGui.GetIO();
+            var atlas = io.Fonts;
+
+            ImString fontPath = new ImString(path);
+
+            _pixelFont = atlas.AddFontFromFileTTF(
+                fontPath,
+                GameSettings.GetFontSize()
+            );
+
+            if (!_pixelFont.IsNull())
+            {
+                FontManager.Fonts["PixelCode"] = _pixelFont;
+                Console.WriteLine("[BuilderPlus] PixelCode loaded OK");
+            }
+            else
+            {
+                Console.WriteLine("[BuilderPlus] PixelCode FAILED");
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"[BuilderPlus] PixelCode error: {e.Message}");
+        }
+    }
+
+    static void PushPixelFont(out bool used)
+    {
+        if (FontManager.Fonts.TryGetValue("PixelCode", out ImFontPtr font))
+        {
+            ImGui.PushFont(font, GameSettings.GetFontSize());
+            used = true;
+            return;
+        }
+
+        used = false;
+    }
+
+    static void PopFontSafe(bool used)
+    {
+        if (used)
+            ImGui.PopFont();
     }
 
     static void DrawToolbar(VehicleEditor editor, Viewport viewport)
@@ -703,8 +895,8 @@ public class VehicleEditorUIPatch
         ImGui.SetNextWindowSize(new float2(340f, screenHeight - 60f), ImGuiCond.Always);
 
         PushDarkTheme();
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new float2(0f, 0f));
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing,   new float2(2f, 2f));
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new float2(10f, 10f));
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing,   new float2(6f, 6f));
 
         ImGui.Begin("##BuilderPlusParts", flags);
         
@@ -730,7 +922,11 @@ public class VehicleEditorUIPatch
 
         // Header
         ImGui.PushStyleColor(ImGuiCol.ChildBg, BG_DARK);
-        ImGui.BeginChild("##header"u8, new float2(0f, 35f));
+        ImGui.BeginChild("##header", new float2(0f, 40f));
+        
+        ImGui.SetCursorPosX(ImGui.GetCursorPosX() + 6f);
+        ImGui.SetCursorPosY(ImGui.GetCursorPosY() + 4f);
+
         ImGui.PushStyleColor(ImGuiCol.Text, HEADER_COLOR);
         ImGui.Text("PART CATALOGUE"u8);
         ImGui.PopStyleColor();
@@ -818,6 +1014,7 @@ public class VehicleEditorUIPatch
         // Sidebar
         ImGui.PushStyleColor(ImGuiCol.ChildBg, BG_DARK);
         ImGui.BeginChild("##sidebar"u8, new float2(36f, 0f));
+        ImGui.SetCursorPosX(ImGui.GetCursorPosX() + 2f);
 
         // All button
         bool allSelected = _selectedTag == EditorTag.All;
@@ -887,7 +1084,8 @@ public class VehicleEditorUIPatch
             if (part.IsSubPart || part.IsHidden) continue;
             if (tag != EditorTag.All && !part.HasEditorTag(tag)) continue;
             if (!string.IsNullOrEmpty(search) &&
-                !part.DisplayName.Contains(search, StringComparison.OrdinalIgnoreCase)) continue;
+                !GetFriendlyName(part).Contains(search, StringComparison.OrdinalIgnoreCase) &&
+                !part.Id.Contains(search, StringComparison.OrdinalIgnoreCase)) continue;
 
             string category = tag == EditorTag.All ? GetFirstTag(part) : tag.Tag;
             if (!grouped.ContainsKey(category))
@@ -895,7 +1093,7 @@ public class VehicleEditorUIPatch
             grouped[category].Add(part);
         }
 
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new float2(3f, 3f));
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new float2(6f, 6f));
         foreach (var group in grouped)
         {
             ImGui.Dummy(new float2(0f, 4f));
@@ -984,7 +1182,8 @@ public class VehicleEditorUIPatch
                             : $"{totalMass * 1000f:F0} kg";
                         
                         ImGui.BeginTooltip();
-                        ImGui.Text(part.DisplayName);
+                        ImGui.SetCursorPosX(ImGui.GetCursorPosX() + 4f);
+                        ImGui.Text(GetFriendlyName(part));
                         //ImGui.Text("Mass: " + massStr);
                         ImGui.EndTooltip();
                     }
@@ -1217,9 +1416,10 @@ public class VehicleEditorUIPatch
 
                     foreach (Part part in stageParts)
                     {
-                        string shortName = part.DisplayName.Length > 12
-                            ? part.DisplayName.Substring(0, 12)
-                            : part.DisplayName;
+                        string friendlyName = GetFriendlyName(part.FullPart.Template);
+                        string shortName = friendlyName.Length > 12
+                            ? friendlyName.Substring(0, 12)
+                            : friendlyName;
 
                         float4 btnColor = part.HighlightedForStage ? ACCENT_BLUE : BG_MID;
                         ImGui.PushStyleColor(ImGuiCol.Button,        btnColor);
@@ -1233,7 +1433,7 @@ public class VehicleEditorUIPatch
                         bool hovered = ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled);
                         if (hovered)
                         {
-                            ImGui.SetTooltip(part.DisplayName);
+                            ImGui.SetTooltip(GetFriendlyName(part.FullPart.Template));
                             part.Highlighted = true;
                         }
                         else
@@ -1401,7 +1601,7 @@ public class VehicleEditorUIPatch
                         ImGui.PopStyleColor(2);
                         if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
                         {
-                            ImGui.SetTooltip(part.DisplayName);
+                            ImGui.SetTooltip(GetFriendlyName(part.FullPart.Template));
                             part.Highlighted = true;
                         }
                         else
@@ -1565,6 +1765,526 @@ public class VehicleEditorUIPatch
         ImGui.End();
         ImGui.PopStyleVar();
         PopDarkTheme();
+    }
+
+    static void DrawCustomPartMenu(VehicleEditor editor, int index, Viewport viewport)
+    {
+            ref PartMenu menu = ref System.Runtime.InteropServices.CollectionsMarshal.AsSpan(editor.PartMenus)[index];            
+            var part = menu.Part;
+            if (part == null) return;
+
+        string friendlyName = GetFriendlyName(part.FullPart.Template);
+
+        // Position near the part in 3D
+        double4x4 matrixAsmb2Ego = editor.EditingSpace.GetMatrixAsmb2Ego(viewport.GetCamera());
+        double3 posEgo = part.PositionEgo(in matrixAsmb2Ego);
+        ImGui.SetNextWindowPos(viewport.Position + viewport.GetCamera().EgoToScreen(posEgo), ImGuiCond.Appearing);
+
+        ImGui.SetNextWindowSize(new float2(280f, 0f), ImGuiCond.Appearing);
+        PushDarkTheme();
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new float2(10f, 10f));
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new float2(4f, 6f));
+
+        bool open = true;
+        ImGui.Begin($"{friendlyName}##partmenu_{part.InstanceId}", ref open,
+            ImGuiWindowFlags.NoCollapse);
+
+        if (!open)
+        {
+            editor.PartMenus.Remove(menu);
+            if (part.TreeParent != null)
+                part.TreeParent.Highlighted = false;
+            if (part.SymmetryLink.HasValue)
+            {
+                foreach (var sym in part.SymmetryLink.Value.Symmetries)
+                    foreach (var sp in sym.Parts)
+                        sp.Highlighted = false;
+            }
+            ImGui.End();
+            ImGui.PopStyleVar(2);
+            PopDarkTheme();
+            return;
+        }
+
+        // === HEADER ===
+        ImGui.PushStyleColor(ImGuiCol.Text, HEADER_COLOR);
+        ImGui.Text(friendlyName);
+        ImGui.PopStyleColor();
+
+        float totalMass = 0f;
+        Span<InertMass> masses = part.SubtreeModules.Get<InertMass>();
+        for (int i = 0; i < masses.Length; i++)
+            totalMass += masses[i].MassPropertiesAsmb.Props.Mass;
+        string massStr = totalMass >= 1f ? $"{totalMass:F2} t" : $"{totalMass * 1000f:F0} kg";
+
+        ImGui.PushStyleColor(ImGuiCol.Text, TEXT_DIM);
+        ImGui.Text($"Mass: {massStr}");
+        ImGui.PopStyleColor();
+
+        ImGui.PushStyleColor(ImGuiCol.Separator, ACCENT_BLUE);
+        ImGui.Separator();
+        ImGui.PopStyleColor();
+        ImGui.Dummy(new float2(0f, 2f));
+
+        // === ACTIONS ROW 1 ===
+        float btnWidth = (ImGui.GetContentRegionAvail().X - 8f) / 3f;
+
+        // Delete
+        ImGui.PushStyleColor(ImGuiCol.Button, new float4(0.6f, 0.15f, 0.15f, 1f));
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new float4(0.8f, 0.2f, 0.2f, 1f));
+        if (ImGui.Button("Delete##partact", new float2(btnWidth, 28f)))
+        {
+            TakeSnapshot(editor);
+            if (part.Tree.Root == part && editor.EditingSpace.Parts != null && part.Tree == editor.EditingSpace.Parts)
+                editor.EditingSpace.Parts = null;
+            editor.UnattachedPartTrees.Remove(part.Tree);
+            part.Disconnect();
+            editor.Selected = null;
+            editor.Highlighted = null;
+            editor.PartMenus.Remove(menu);
+            StickyGrabPatch.CancelStickyGrab();
+            MarkSnapshotNeeded();
+            ImGui.End();
+            ImGui.PopStyleVar(2);
+            PopDarkTheme();
+            return;
+        }
+        ImGui.PopStyleColor(2);
+
+        // Reroot
+        ImGui.SameLine();
+        if (part.TreeParent == null) ImGui.BeginDisabled();
+        ImGui.PushStyleColor(ImGuiCol.Button, BG_MID);
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ACCENT_HOVER);
+        if (ImGui.Button("Reroot##partact", new float2(btnWidth, 28f)))
+            part.Tree.Reroot(part);
+        ImGui.PopStyleColor(2);
+        if (part.TreeParent == null) ImGui.EndDisabled();
+
+        // Copy Tree
+        ImGui.SameLine();
+        ImGui.PushStyleColor(ImGuiCol.Button, BG_MID);
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ACCENT_HOVER);
+        if (ImGui.Button("Copy##partact", new float2(btnWidth, 28f)))
+        {
+            uint localId = 1u;
+            var copy = PartTree.Deserialize(part.GetReferenceWithChildren(ref localId));
+            editor.UnattachedPartTrees.Add(copy);
+            var copyParts = copy.Parts;
+            for (int i = 0; i < copyParts.Length; i++)
+                copyParts[i].FakeTranslucent = true;
+        }
+        ImGui.PopStyleColor(2);
+
+        // === ACTIONS ROW 2 ===
+        ImGui.Dummy(new float2(0f, 2f));
+        float halfWidth = (ImGui.GetContentRegionAvail().X - 4f) / 2f;
+
+        // Highlight Parent
+        if (part.TreeParent == null) ImGui.BeginDisabled();
+        ImGui.PushStyleColor(ImGuiCol.Button, BG_MID);
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ACCENT_HOVER);
+        if (ImGui.Button("Parent##hp", new float2(halfWidth, 28f)))
+            part.TreeParent.Highlighted = !part.TreeParent.Highlighted;
+        ImGui.PopStyleColor(2);
+        if (part.TreeParent == null) ImGui.EndDisabled();
+
+        // Highlight Symmetry
+        ImGui.SameLine();
+        if (!part.SymmetryLink.HasValue) ImGui.BeginDisabled();
+        ImGui.PushStyleColor(ImGuiCol.Button, BG_MID);
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ACCENT_HOVER);
+        if (ImGui.Button("Sym##hs", new float2(halfWidth, 28f)))
+        {
+            foreach (var sym in part.SymmetryLink.Value.Symmetries)
+                foreach (var sp in sym.Parts)
+                    sp.Highlighted = !sp.Highlighted;
+        }
+        ImGui.PopStyleColor(2);
+        if (!part.SymmetryLink.HasValue) ImGui.EndDisabled();
+
+        ImGui.Dummy(new float2(0f, 4f));
+        ImGui.PushStyleColor(ImGuiCol.Separator, ACCENT_BLUE);
+        ImGui.Separator();
+        ImGui.PopStyleColor();
+
+        // === STAGE & SEQUENCE ===
+        if (ImGui.BeginTable("##stageseq", 2, ImGuiTableFlags.None))
+        {
+            ImGui.TableSetupColumn("##label", ImGuiTableColumnFlags.WidthFixed, 70f);
+            ImGui.TableSetupColumn("##value", ImGuiTableColumnFlags.WidthStretch);
+
+            ImGui.TableNextRow();
+            ImGui.TableNextColumn();
+            ImGui.PushStyleColor(ImGuiCol.Text, TEXT_DIM);
+            ImGui.Text("Stage");
+            ImGui.PopStyleColor();
+            ImGui.TableNextColumn();
+            int stage = part.Stage;
+            ImGui.PushItemWidth(-1f);
+            if (ImGui.InputInt("##stage", ref stage, 1, 1, ImGuiInputTextFlags.None))
+            {
+                part.SetStage(Math.Max(0, stage));
+                part.FullPart.Tree.RecomputeAllDerivedData();
+            }
+            ImGui.PopItemWidth();
+
+            if (part.Sequenceable)
+            {
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+                ImGui.PushStyleColor(ImGuiCol.Text, TEXT_DIM);
+                ImGui.Text("Sequence");
+                ImGui.PopStyleColor();
+                ImGui.TableNextColumn();
+                int seq = part.Sequence;
+                ImGui.PushItemWidth(-1f);
+                if (ImGui.InputInt("##seq", ref seq, 1, 1, ImGuiInputTextFlags.None))
+                    part.SetSequence(Math.Max(0, seq));
+                ImGui.PopItemWidth();
+            }
+
+            ImGui.EndTable();
+        }
+
+        // === RESOURCES / FUEL ===
+        Span<Tank> tanks = part.SubtreeModules.Get<Tank>();
+        if (tanks.Length > 0)
+        {
+            ImGui.Dummy(new float2(0f, 2f));
+            ImGui.PushStyleColor(ImGuiCol.Separator, ACCENT_BLUE);
+            ImGui.Separator();
+            ImGui.PopStyleColor();
+
+            ImGui.PushStyleColor(ImGuiCol.Text, HEADER_COLOR);
+            ImGui.Text("Resources");
+            ImGui.PopStyleColor();
+
+            // Combustion selector
+           var combustionsField = typeof(VehicleEditor)
+                .GetField("_combustionObjects", BindingFlags.NonPublic | BindingFlags.Instance);
+            var combustions = combustionsField?.GetValue(editor);
+            Console.WriteLine($"[BP] combustions type: {combustions?.GetType()}");
+            Console.WriteLine($"[BP] combustions null: {combustions == null}");
+            
+            if (combustions != null)
+            {
+                if (!menu.SelectedCombustionSet)
+                {
+                    var combustionList = combustions as List<CombustionObject>;
+                    if (combustionList != null && combustionList.Count > 0)
+                    {
+                        // Match tank's current substances against combustion reactants
+                        var tankMoles = new List<Substance>();
+                        foreach (var mole in tanks[0].Moles)
+                            tankMoles.Add(mole.SubstancePhase.Substance);
+                        
+                        bool found = false;
+                        foreach (var combObj in combustionList)
+                        {
+                            bool match = true;
+                            foreach (var sub in tankMoles)
+                            {
+                                bool subFound = false;
+                                var reactants = combObj.Combustion.Reactants;
+                                for (int r = 0; r < reactants.Length; r++)
+                                {
+                                    if (reactants[r].SubstancePhase.Substance == sub)
+                                    { subFound = true; break; }
+                                }
+                                if (!subFound) { match = false; break; }
+                            }
+                            if (match)
+                            {
+                                menu.SelectedCombustion = combObj;
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found)
+                            menu.SelectedCombustion = combustionList[0];
+                    }
+                    menu.SelectedCombustionSet = true;
+                }
+
+                ImGuiHelper.BeginColumns(2);
+                ImGuiHelper.DrawCombo("Resource"u8, ref menu.SelectedCombustion, combustions as List<CombustionObject>);
+                ImGuiHelper.EndColumns();
+            }
+
+            ImGui.PushStyleColor(ImGuiCol.Button, ACCENT_BLUE);
+            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ACCENT_HOVER);
+            if (ImGui.Button("Refill##refuel", new float2(ImGui.GetContentRegionAvail().X, 28f)))
+            {
+                for (int i = 0; i < tanks.Length; i++)
+                    tanks[i].ConfigureFor(menu.SelectedCombustion.Combustion);
+            }
+            ImGui.PopStyleColor(2);
+        }
+
+        // === BATTERY ===
+        Span<Battery> batteries = part.SubtreeModules.Get<Battery>();
+        if (batteries.Length > 0)
+        {
+            ImGui.Dummy(new float2(0f, 2f));
+            ImGui.PushStyleColor(ImGuiCol.Separator, ACCENT_BLUE);
+            ImGui.Separator();
+            ImGui.PopStyleColor();
+
+            ImGui.PushStyleColor(ImGuiCol.Text, HEADER_COLOR);
+            ImGui.Text("Battery");
+            ImGui.PopStyleColor();
+
+            for (int i = 0; i < batteries.Length; i++)
+            {
+                var battery = batteries[i];
+                var stateRef = part.FullPart.Tree.Batteries
+                    .GetModuleAndAllMutableStatesForInitializationByIdx(battery.StatesIdx);
+                int charge = (int)stateRef.State.Charge.Value();
+                int maxCharge = (int)battery.MaximumCapacity.Value();
+
+                ImGui.PushStyleColor(ImGuiCol.Text, TEXT_DIM);
+                ImGui.Text("Charge");
+                ImGui.PopStyleColor();
+                ImGui.PushItemWidth(-1f);
+                if (ImGui.SliderInt("##charge_" + i, ref charge, 0, maxCharge, "%d J", ImGuiSliderFlags.None))
+                    stateRef.State.Charge = new Joules(charge);
+                ImGui.PopItemWidth();
+            }
+        }
+
+        // === TRS ===
+        if (ImGui.CollapsingHeader("TRS"))
+        {
+            var trs = menu.MenuTRS;
+
+            // sync con el part (solo si no está editando)
+            if (!trs.IsEditing)
+            {
+                trs.Translation = part.PositionParentAsmb;
+                trs.RotationQuat = part.Asmb2ParentAsmb;
+                trs.Scale = part.Scale;
+            }
+
+            // POSITION
+           var posD = trs.Translation;
+            var pos = new float3((float)posD.X, (float)posD.Y, (float)posD.Z);
+
+            if (ImGui.DragFloat3("Position", ref pos, 0.1f))
+            {
+                trs.Translation = new double3(pos.X, pos.Y, pos.Z);
+                part.PositionParentAsmb = trs.Translation;
+                trs.IsEditing = true;
+            }
+
+            // ROTATION (Euler)
+            var rotD = trs.RotationEuler;
+            var rot = new float3((float)rotD.X, (float)rotD.Y, (float)rotD.Z);
+
+            if (ImGui.DragFloat3("Rotation", ref rot, 1f))
+            {
+                trs.RotationEuler = new double3(rot.X, rot.Y, rot.Z);
+                trs.RotationQuat = doubleQuat.CreateFromYawPitchRoll(rot.Y, rot.X, rot.Z);
+                part.Asmb2ParentAsmb = trs.RotationQuat;
+                trs.IsEditing = true;
+            }
+
+            // SCALE
+            var scaleD = trs.Scale;
+            var scale = new float3((float)scaleD.X, (float)scaleD.Y, (float)scaleD.Z);
+
+            if (ImGui.DragFloat3("Scale", ref scale, 0.01f))
+            {
+                trs.Scale = new double3(scale.X, scale.Y, scale.Z);
+                part.Scale = trs.Scale;
+                trs.IsEditing = true;
+            }
+
+            // guardar cambios
+            menu.MenuTRS = trs;
+        }
+
+        // === SUBPARTS ===
+        if (ImGui.CollapsingHeader("SubParts##partsub"))
+        {
+            var subParts = part.SubParts;
+
+            for (int i = 0; i < subParts.Length; i++)
+            {
+                var sp = subParts[i];
+
+                ImGui.PushID((int)sp.InstanceId);
+
+                bool selected = (_selectedSubPart == sp);
+
+                if (ImGui.Selectable(sp.DisplayName, selected))
+                {
+                    _selectedSubPart = sp;
+                    _subPartWindowOpen = true;
+
+                    // init TRS
+                    _subPartTRS.Translation = sp.PositionParentAsmb;
+                    _subPartTRS.RotationQuat = sp.Asmb2ParentAsmb;
+                    _subPartTRS.RotationEuler = double3.Zero;
+                    _subPartTRS.Scale = sp.Scale;
+                    _subPartTRS.IsEditing = false;
+                }
+
+                ImGui.PopID();
+            }
+        }
+
+        // === ADD SUBPARTS ===
+        var modLibType = typeof(ModLibrary);
+        var allPartsField = modLibType.GetField("AllParts", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+
+        var allParts = allPartsField?.GetValue(null);
+
+        var getListMethod = allParts?.GetType().GetMethod("GetList");
+
+        var partList = getListMethod?.Invoke(allParts, null) as IEnumerable<PartTemplate>;
+
+        if (ImGui.CollapsingHeader("Add SubParts##partaddsub"))
+        {
+            if (partList != null)
+            {
+                foreach (var template in partList)
+                {
+                    if (!template.IsSubPart) continue;
+
+                    if (ImGui.Button($"Add {template.Id}##add_{template.Id}_{part.InstanceId}"))
+                    {
+                        var subPart = new Part($"{template.Id} {part.SubParts.Length}", template);
+
+                        subPart.Tree = part.Tree;
+
+                        subPart.PositionParentAsmb = new double3(0, 0, 0);
+                        subPart.Asmb2ParentAsmb = doubleQuat.Identity;
+                        subPart.Scale = new double3(1, 1, 1);
+
+                        part.AddSubPart(subPart);
+
+                        var pos = part.PositionParentAsmb;
+                        part.PositionParentAsmb = pos + new double3(1e-9, 0, 0);
+                        part.PositionParentAsmb = pos;
+                    }
+                }
+            }
+        }
+        // === SCALE (collapsible) ===
+        ImGui.Dummy(new float2(0f, 2f));
+        if (ImGui.CollapsingHeader("Scale##partscale", ImGuiTreeNodeFlags.None))
+        {
+            double3 scale = part.Scale;
+            float sx = (float)scale.X, sy = (float)scale.Y, sz = (float)scale.Z;
+            bool changed = false;
+
+            ImGui.PushStyleColor(ImGuiCol.Text, TEXT_DIM);
+            ImGui.Text("X"); ImGui.SameLine();
+            ImGui.PopStyleColor();
+            ImGui.PushItemWidth(-1f);
+            if (ImGui.DragFloat("##sx", ref sx, 0.01f, 0.1f, 10f, "%.2f", ImGuiSliderFlags.None))
+                changed = true;
+            ImGui.PopItemWidth();
+
+            ImGui.PushStyleColor(ImGuiCol.Text, TEXT_DIM);
+            ImGui.Text("Y"); ImGui.SameLine();
+            ImGui.PopStyleColor();
+            ImGui.PushItemWidth(-1f);
+            if (ImGui.DragFloat("##sy", ref sy, 0.01f, 0.1f, 10f, "%.2f", ImGuiSliderFlags.None))
+                changed = true;
+            ImGui.PopItemWidth();
+
+            ImGui.PushStyleColor(ImGuiCol.Text, TEXT_DIM);
+            ImGui.Text("Z"); ImGui.SameLine();
+            ImGui.PopStyleColor();
+            ImGui.PushItemWidth(-1f);
+            if (ImGui.DragFloat("##sz", ref sz, 0.01f, 0.1f, 10f, "%.2f", ImGuiSliderFlags.None))
+                changed = true;
+            ImGui.PopItemWidth();
+
+            if (changed)
+                part.Scale = new double3(sx, sy, sz);
+        }
+
+        // === CONNECTIONS (collapsible) ===
+        if (ImGui.CollapsingHeader("Connections##partconn", ImGuiTreeNodeFlags.None))
+        {
+            foreach (var conn in part.Connections)
+            {
+                var other = conn.OtherPart(part);
+                string connName = GetFriendlyName(other.FullPart.Template);
+                ImGui.PushStyleColor(ImGuiCol.Button, BG_MID);
+                ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ACCENT_HOVER);
+                if (ImGui.Button($"{connName}##conn_{other.InstanceId}", new float2(-1f, 24f)))
+                    other.Highlighted = !other.Highlighted;
+                ImGui.PopStyleColor(2);
+            }
+        }
+
+        // === INFO (collapsible) ===
+        if (ImGui.CollapsingHeader("Info##partinfo", ImGuiTreeNodeFlags.None))
+        {
+            ImGui.PushStyleColor(ImGuiCol.Text, TEXT_DIM);
+            ImGui.Text($"ID: {part.Id}");
+            ImGui.Text($"Root: {(part.IsRoot ? "Yes" : "No")}");
+            ImGui.Text($"Instance: {part.InstanceId}");
+            ImGui.PopStyleColor();
+        }
+
+        ImGui.End();
+        ImGui.PopStyleVar(2);
+        PopDarkTheme();
+    }
+
+    static void DrawSubPartTRS()
+    {
+        if (_selectedSubPart == null) return;
+
+        if (ImGui.CollapsingHeader("TRS", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            // POSITION
+            var pos = new float3(
+                (float)_subPartTRS.Translation.X,
+                (float)_subPartTRS.Translation.Y,
+                (float)_subPartTRS.Translation.Z
+            );
+
+            if (ImGui.DragFloat3("Position", ref pos, 0.1f))
+            {
+                _subPartTRS.Translation = new double3(pos.X, pos.Y, pos.Z);
+                _selectedSubPart.PositionParentAsmb = _subPartTRS.Translation;
+            }
+
+            // ROTATION
+            var rot = new float3(
+                (float)_subPartTRS.RotationEuler.X,
+                (float)_subPartTRS.RotationEuler.Y,
+                (float)_subPartTRS.RotationEuler.Z
+            );
+
+            if (ImGui.DragFloat3("Rotation", ref rot, 1f))
+            {
+                _subPartTRS.RotationEuler = new double3(rot.X, rot.Y, rot.Z);
+                _subPartTRS.RotationQuat =
+                    doubleQuat.CreateFromYawPitchRoll(rot.Y, rot.X, rot.Z);
+
+                _selectedSubPart.Asmb2ParentAsmb = _subPartTRS.RotationQuat;
+            }
+
+            // SCALE
+            var scale = new float3(
+                (float)_subPartTRS.Scale.X,
+                (float)_subPartTRS.Scale.Y,
+                (float)_subPartTRS.Scale.Z
+            );
+
+            if (ImGui.DragFloat3("Scale", ref scale, 0.01f))
+            {
+                _subPartTRS.Scale = new double3(scale.X, scale.Y, scale.Z);
+                _selectedSubPart.Scale = _subPartTRS.Scale;
+            }
+        }
     }
 
     static string GetFirstTag(PartTemplate part)

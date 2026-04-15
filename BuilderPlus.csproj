@@ -6,6 +6,11 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Remove="inspect.cs" />
+    <Compile Remove=".codex-temp\**\*.cs" />
+  </ItemGroup>
+
   <Target Name="CopyToMods" AfterTargets="Build">
     <Copy
       SourceFiles="$(OutputPath)BuilderPlus.dll"

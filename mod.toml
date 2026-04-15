@@ -1,10 +1,14 @@
 [mod]
 id = "BuilderPlus"
 name = "BuilderPlus"
-version = "0.3.0"
-description = "Replaces the vehicle editor UI with a KSP2-style interface featuring a parts catalogue, toolbar, stages, sequences, and launch panel."
+version = "0.4.1"
+description = "KSP-style vehicle builder interface for Kitten Space Agency"
 authors = ["brunog___"]
 license = "MIT"
+
+
+[credits]
+"PixelCode Font" = "qwerasd205 (https://github.com/qwerasd205/PixelCode)"
 
 [dependencies]
 starmap = ">=0.4.5"
