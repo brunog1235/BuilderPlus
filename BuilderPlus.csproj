@@ -4,76 +4,97 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <!-- <KSAFolder>D:\Games\Kitten Space Agency</KSAFolder> -->
+    <!-- <DistFolder>$(KSAFolder)\Content\BuilderPlus\</DistFolder> -->
+
+    <!-- default KSA paths -->
+    <KSAFolder>C:\Program Files\Kitten Space Agency</KSAFolder>
+    <DistFolder>$(USERPROFILE)\Documents\My Games\Kitten Space Agency\mods\BuilderPlus\</DistFolder>
+
   </PropertyGroup>
 
-  <Target Name="CopyToMods" AfterTargets="Build">
-    <Copy
-      SourceFiles="$(OutputPath)BuilderPlus.dll"
-      DestinationFolder="D:\Games\Kitten Space Agency\Content\BuilderPlus\"
-      OverwriteReadOnlyFiles="true"
-    />
-  </Target>
+  <!-- ignore decomp/ dir with decompiled KSA sources -->
+  <ItemGroup>
+    <Compile Remove="decomp/**" />
+  </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="StarMap.API">
-      <HintPath>D:\OneDrive\000 - KSAModding\StarMapLauncher-0.4.5\StarMap.API.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="StarMap.Types">
-      <HintPath>D:\OneDrive\000 - KSAModding\StarMapLauncher-0.4.5\StarMap.Types.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="0Harmony">
-      <HintPath>D:\OneDrive\000 - KSAModding\StarMapLauncher-0.4.5\0Harmony.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
+    <None Update="mod.toml">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="assets\fa-solid-900.font">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <Target Name="CopyToMods" AfterTargets="Build">
+    <MakeDir Directories="$(DistFolder)" />
+
+    <ItemGroup>
+      <FilesToCopy Include="$(OutputPath)mod.toml" />
+      <FilesToCopy Include="$(OutputPath)BuilderPlus.dll" />
+      <FilesToCopy Include="$(OutputPath)assets\fa-solid-900.font" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(FilesToCopy)" DestinationFolder="$(DistFolder)" OverwriteReadOnlyFiles="true" />
+
+  </Target>
+  
+  <ItemGroup>
+    <PackageReference Include="StarMap.API" Version="0.3.6" PrivateAssets="all" />
+    <PackageReference Include="Lib.Harmony" Version="2.4.2" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="Brutal.ImGui">
-      <HintPath>D:\Games\Kitten Space Agency\Brutal.ImGui.dll</HintPath>
+      <HintPath>$(KSAFolder)\Brutal.ImGui.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Brutal.ImGui.Abstractions">
-      <HintPath>D:\Games\Kitten Space Agency\Brutal.ImGui.Abstractions.dll</HintPath>
+      <HintPath>$(KSAFolder)\Brutal.ImGui.Abstractions.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="KSA">
-      <HintPath>D:\Games\Kitten Space Agency\KSA.dll</HintPath>
+      <HintPath>$(KSAFolder)\KSA.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Brutal.Core.Numerics">
-  <HintPath>D:\Games\Kitten Space Agency\Brutal.Core.Numerics.dll</HintPath>
-  <Private>false</Private>
-  </Reference>
-  <Reference Include="Brutal.Core.Common">
-    <HintPath>D:\Games\Kitten Space Agency\Brutal.Core.Common.dll</HintPath>
-    <Private>false</Private>
-  </Reference>
-  <Reference Include="Brutal.ImGui.Extensions">
-    <HintPath>D:\Games\Kitten Space Agency\Brutal.ImGui.Extensions.dll</HintPath>
-    <Private>false</Private>
-  </Reference>
-  <Reference Include="Brutal.Vulkan">
-    <HintPath>D:\Games\Kitten Space Agency\Brutal.Vulkan.dll</HintPath>
-    <Private>false</Private>
-  </Reference>
-  <Reference Include="Brutal.Core.Strings">
-    <HintPath>D:\Games\Kitten Space Agency\Brutal.Core.Strings.dll</HintPath>
-    <Private>false</Private>
-  </Reference>
-  <Reference Include="Brutal.Glfw">
-    <HintPath>D:\Games\Kitten Space Agency\Brutal.Glfw.dll</HintPath>
-    <Private>false</Private>
-  </Reference>
-  <Reference Include="Planet.Render.Core">
-    <HintPath>D:\Games\Kitten Space Agency\Planet.Render.Core.dll</HintPath>
-    <Private>false</Private>
-  </Reference>
-  <Reference Include="Brutal.Ktx">
-    <HintPath>D:\Games\Kitten Space Agency\Brutal.Ktx.dll</HintPath>
-    <Private>false</Private>
-  </Reference>
-  <Reference Include="Brutal.Texture">
-    <HintPath>D:\Games\Kitten Space Agency\Brutal.Texture.dll</HintPath>
-    <Private>false</Private>
-  </Reference>
+      <HintPath>$(KSAFolder)\Brutal.Core.Numerics.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.Core.Common">
+      <HintPath>$(KSAFolder)\Brutal.Core.Common.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.ImGui.Extensions">
+      <HintPath>$(KSAFolder)\Brutal.ImGui.Extensions.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.Vulkan">
+      <HintPath>$(KSAFolder)\Brutal.Vulkan.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.Core.Strings">
+      <HintPath>$(KSAFolder)\Brutal.Core.Strings.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.Glfw">
+      <HintPath>$(KSAFolder)\Brutal.Glfw.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Planet.Render.Core">
+      <HintPath>$(KSAFolder)\Planet.Render.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.Ktx">
+      <HintPath>$(KSAFolder)\Brutal.Ktx.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.Texture">
+      <HintPath>$(KSAFolder)\Brutal.Texture.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
+
 </Project>
