@@ -524,6 +524,8 @@ public class VehicleEditorUIPatch
                 DrawSavePopup(__instance);
             if (_showLoadPanel)
                 DrawLoadPanel(__instance, inViewport);
+
+            DrawRefreshVehicleWindow(__instance, inViewport);
         }
         catch (Exception e)
         {
@@ -1638,5 +1640,33 @@ public class VehicleEditorUIPatch
         editor.Highlighted = null;
     }
     public static void MarkSnapshotNeeded() => _snapshotPending = true;
+
+    static void DrawRefreshVehicleWindow(VehicleEditor editor, Viewport viewport)
+    {
+        ImGuiWindowFlags flags = ImGuiWindowFlags.NoMove
+            | ImGuiWindowFlags.NoResize
+            | ImGuiWindowFlags.NoCollapse;
+
+        ImGui.SetNextWindowPos(viewport.Position + new float2(420f, 40f), ImGuiCond.Once);
+        ImGui.SetNextWindowSize(new float2(340f, 140f), ImGuiCond.Always);
+
+        PushDarkTheme();
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new float2(8f, 8f));
+
+        ImGui.Begin("Vehicle", flags);
+
+        if (ImGui.Button("Refresh Vehicle", new float2(334f, 36f)))
+        {
+            if (editor.EditingSpace.Parts != null)
+            {
+                var oldStates = editor.EditingSpace.Parts.States;
+                editor.EditingSpace.Parts.ReinitializeDerivedValues(oldStates);
+            }
+        }
+
+        ImGui.End();
+        ImGui.PopStyleVar();
+        PopDarkTheme();
+    }
 
 }
