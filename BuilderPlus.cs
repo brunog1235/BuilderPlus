@@ -16,8 +16,6 @@ public class BuilderPlusMod
     // Stores the mod directory path for loading external resources (fonts, JSON, etc.)
     public static string ModPath = "";
 
-    private static bool _hasRan = false;
-
     [StarMapImmediateLoad]
     public void OnLoad(KSA.Mod mod)
     {
