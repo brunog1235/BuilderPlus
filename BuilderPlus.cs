@@ -22,6 +22,7 @@ public class BuilderPlusMod
         // Save the mod directory path
         ModPath = mod.DirectoryPath;
         // Apply all Harmony patches in the assembly
+        Console.WriteLine("Fresh Download");
         _harmony.PatchAll();
     }
 
@@ -459,46 +460,6 @@ public class VehicleEditorUIPatch
         return part.Id;
     }
 
-    // Applies global HUD-style theme to ImGui (colors, rounding, spacing)
-    static void ApplyHudTheme()
-    {
-        var style = ImGui.GetStyle();
-
-        // Configure layout and rounding for windows and UI elements    
-        style.WindowRounding = 10f;
-        style.ChildRounding  = 8f;
-        style.FrameRounding  = 6f;
-        style.WindowBorderSize = 1.5f;
-
-        style.WindowPadding = new float2(10f, 10f);
-        style.ItemSpacing   = new float2(6f, 6f);
-
-        var colors = style.Colors;
-
-        // Background and frame styling (dark transparent HUD look)
-        colors[(int)ImGuiCol.WindowBg]      = new float4(0f, 0f, 0f, 0.25f);
-        colors[(int)ImGuiCol.ChildBg]       = new float4(0f, 0f, 0f, 0f);
-        colors[(int)ImGuiCol.FrameBg]       = new float4(0f, 0f, 0f, 0.2f);
-
-        // Button states (idle, hover, active)
-        colors[(int)ImGuiCol.Button]        = new float4(0f, 0f, 0f, 0f);
-        colors[(int)ImGuiCol.ButtonHovered] = new float4(0.2f, 0.6f, 1f, 0.2f);
-        colors[(int)ImGuiCol.ButtonActive]  = new float4(0.2f, 0.6f, 1f, 0.4f);
-
-        // Header elements (e.g., selectable, collapsing headers)
-        colors[(int)ImGuiCol.Header]        = new float4(0.2f, 0.6f, 1f, 0.15f);
-        colors[(int)ImGuiCol.HeaderHovered] = new float4(0.2f, 0.6f, 1f, 0.3f);
-        colors[(int)ImGuiCol.HeaderActive]  = new float4(0.2f, 0.6f, 1f, 0.5f);
-
-        // Text and borders
-        colors[(int)ImGuiCol.Text]          = new float4(0.7f, 0.9f, 1f, 1f);
-        colors[(int)ImGuiCol.Border]        = new float4(0.2f, 0.6f, 1f, 0.6f);
-
-        // Scrollbar styling
-        colors[(int)ImGuiCol.ScrollbarBg]   = new float4(0f, 0f, 0f, 0f);
-        colors[(int)ImGuiCol.ScrollbarGrab] = new float4(0.2f, 0.6f, 1f, 0.6f);
-    }
-
     // Main UI override for VehicleEditor: handles initialization, input, and full custom rendering
     static bool Prefix(VehicleEditor __instance, Viewport inViewport)
     {
@@ -680,8 +641,8 @@ public class VehicleEditorUIPatch
         {
             double4x4 matrixVehicleAsmb2Ego = __instance.EditingSpace.GetMatrixAsmb2Ego(inViewport.GetCamera());
 
-            // Apply UI theme and font before rendering custom UI
-            ApplyHudTheme(); 
+            // Push custom theme (all styling is scoped with Push/Pop to avoid global contamination)
+            PushDarkTheme();
             PushPixelFont(out usedFont);
 
             // Main custom UI panels
@@ -757,6 +718,7 @@ public class VehicleEditorUIPatch
         finally
         {
             PopFontSafe(usedFont);
+            PopDarkTheme();
         }
 
         // Skip original UI rendering completely
@@ -764,6 +726,7 @@ public class VehicleEditorUIPatch
     }
 
     // Applies a temporary dark theme using ImGui style stacks (Push-based)
+    // All changes are scoped and restored with PopDarkTheme()
     static void PushDarkTheme()
     {
         // Push color overrides for backgrounds, buttons, headers, borders, etc.
@@ -885,8 +848,7 @@ public class VehicleEditorUIPatch
         ImGui.SetNextWindowPos(viewport.Position + new float2(364f, 40f), ImGuiCond.Always);
         ImGui.SetNextWindowSize(new float2(48f, 620f), ImGuiCond.Always);
 
-        // Apply dark theme and compact spacing for toolbar layout
-        PushDarkTheme();
+        // Apply compact spacing for toolbar layout (no additional Push/Pop needed, parent already pushed)
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new float2(4f, 4f));
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing,   new float2(2f, 4f));
 
@@ -997,7 +959,6 @@ public class VehicleEditorUIPatch
         // Cleanup ImGui state (end window and restore styles)
         ImGui.End();          
         ImGui.PopStyleVar(2); 
-        PopDarkTheme();     
     }
 
     // Draws a toolbar button with icon, active state styling, and tooltip
@@ -1044,8 +1005,7 @@ public class VehicleEditorUIPatch
         ImGui.SetNextWindowPos(viewport.Position + new float2(20f, 40f), ImGuiCond.Always);
         ImGui.SetNextWindowSize(new float2(340f, screenHeight - 60f), ImGuiCond.Always);
 
-        // Apply theme and spacing
-        PushDarkTheme();
+        // Apply spacing (theme already pushed by parent)
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new float2(10f, 10f));
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing,   new float2(6f, 6f));
 
@@ -1236,7 +1196,6 @@ public class VehicleEditorUIPatch
         // Cleanup
         ImGui.End();
         ImGui.PopStyleVar(2);
-        PopDarkTheme();
     }
 
     // Draws the list of parts grouped by category with filtering, spawning, and interaction logic
@@ -1431,8 +1390,7 @@ public class VehicleEditorUIPatch
 
         ImGui.SetNextWindowSize(new float2(panelWidth, panelHeight), ImGuiCond.Always);
 
-        // Apply theme and padding
-        PushDarkTheme();
+        // Apply padding (theme already pushed by parent)
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new float2(10f, 10f));
 
         ImGui.Begin("##LaunchPanel", flags);
@@ -1568,7 +1526,6 @@ public class VehicleEditorUIPatch
         // Cleanup
         ImGui.End();
         ImGui.PopStyleVar();
-        PopDarkTheme();
     }
 
     // Draws the stage management panel with stages, parts per stage, and editing controls
@@ -1966,8 +1923,7 @@ public class VehicleEditorUIPatch
         // Set popup size when it appears
         ImGui.SetNextWindowSize(new float2(300f, 120f), ImGuiCond.Appearing);
 
-        // Apply theme and padding
-        PushDarkTheme();
+        // Apply padding (theme already pushed by parent)
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new float2(10f, 10f));
             
         // Begin popup window (can be closed by user)
@@ -2017,7 +1973,6 @@ public class VehicleEditorUIPatch
         // Cleanup
         ImGui.End();
         ImGui.PopStyleVar();
-        PopDarkTheme();
     }    
 
     // Draws the load panel window for browsing, loading, and deleting saved vehicles
@@ -2042,8 +1997,7 @@ public class VehicleEditorUIPatch
 
         ImGui.SetNextWindowSize(new float2(panelWidth, panelHeight), ImGuiCond.Always);
 
-        // Apply theme and padding
-        PushDarkTheme();
+        // Apply padding (theme already pushed by parent)
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new float2(10f, 10f));
 
         ImGui.Begin("##LoadPanel", flags);
@@ -2134,7 +2088,6 @@ public class VehicleEditorUIPatch
         // Cleanup
         ImGui.End();
         ImGui.PopStyleVar();
-        PopDarkTheme();
     }
 
    // Draws the custom floating part menu attached to a selected part in the editor
@@ -2154,8 +2107,7 @@ public class VehicleEditorUIPatch
         ImGui.SetNextWindowPos(viewport.Position + viewport.GetCamera().EgoToScreen(posEgo), ImGuiCond.Appearing);
         ImGui.SetNextWindowSize(new float2(280f, 0f), ImGuiCond.Appearing);
 
-        // Apply theme and layout spacing
-        PushDarkTheme();
+        // Apply layout spacing (theme already pushed by parent)
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new float2(10f, 10f));
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new float2(4f, 6f));
 
@@ -2181,7 +2133,6 @@ public class VehicleEditorUIPatch
 
             ImGui.End();
             ImGui.PopStyleVar(2);
-            PopDarkTheme();
             return;
         }
 
@@ -2234,7 +2185,6 @@ public class VehicleEditorUIPatch
 
             ImGui.End();
             ImGui.PopStyleVar(2);
-            PopDarkTheme();
             return;
         }
 
@@ -2665,7 +2615,6 @@ public class VehicleEditorUIPatch
 
         ImGui.End();
         ImGui.PopStyleVar(2);
-        PopDarkTheme();
     }
 
     // Draws the TRS (Transform) controls for the currently selected subpart

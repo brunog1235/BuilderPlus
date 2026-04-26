@@ -1,7 +1,7 @@
 [mod]
 id = "BuilderPlus"
 name = "BuilderPlus"
-version = "0.4.1"
+version = "0.5.0"
 description = "KSP-style vehicle builder interface for Kitten Space Agency"
 authors = ["brunog___"]
 license = "MIT"
