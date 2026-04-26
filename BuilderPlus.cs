@@ -80,7 +80,9 @@ class HideAlertsInEditor
     // Prefix runs before drawing alerts; returning false prevents all alerts from rendering
     static bool Prefix()
     {
-        return false;
+        if (Program.EditorFlag)  // Only blocks popups if the Program detects that we are in the editor
+            return false;
+        return true;  // Allow alerts to draw normally outside of the editor
     }
 }
 
@@ -1346,6 +1348,29 @@ public class VehicleEditorUIPatch
                             totalMass += massTemplate.GetMassPropertiesAsmb().Props.Mass;
                         }
 
+                        // List of fuel types
+                        List<string> fuelTypes = new List<string>();
+
+                        foreach(RocketCoreTemplate core in part.RocketCores)
+                        {
+                            // Find the Reactants for the fuel
+                            Part tempPart = new Part("##temp", part);
+                            ReadOnlySpan<Reactant> reactants = core.Create(tempPart).Combustion.Reactants;
+
+                            // Create the string for the fuel type(s) and add to the list
+                            string tempFuel = "- ";
+                            for(int i = 0; i < reactants.Length; i++)
+                            {
+                                if (i != 0)
+                                    tempFuel += " and ";
+                                tempFuel += reactants[i].SubstancePhase.Name;  // Actual reactant name
+                            }
+
+                            if (!fuelTypes.Contains(tempFuel))
+                                fuelTypes.Add(tempFuel);
+                            tempPart.Dispose();
+                        }
+
                         string massStr = totalMass >= 1f 
                             ? $"{totalMass:F2} t" 
                             : $"{totalMass * 1000f:F0} kg";
@@ -1353,6 +1378,14 @@ public class VehicleEditorUIPatch
                         ImGui.BeginTooltip();
                         ImGui.SetCursorPosX(ImGui.GetCursorPosX() + 4f);
                         ImGui.Text(GetFriendlyName(part));
+                        if(fuelTypes.Count > 0)
+                        {
+                            ImGui.Text("Accepted Fuels: ");
+                            foreach (string fuel in fuelTypes)
+                            {
+                                ImGui.Text(fuel);
+                            }
+                        }
                         ImGui.EndTooltip();
                     }
                 }
@@ -2149,8 +2182,37 @@ public class VehicleEditorUIPatch
 
         string massStr = totalMass >= 1f ? $"{totalMass:F2} t" : $"{totalMass * 1000f:F0} kg";
 
+        // List of fuel types
+        List<string> fuelTypes = new List<string>();
+
+        foreach(RocketCore core in part.SubtreeModules.Get<RocketCore>())
+        {
+            // Find the Reactants for the fuel
+            ReadOnlySpan<Reactant> reactants = core.Combustion.Reactants;
+
+            // Create the string for the fuel type(s) and add to the list
+            string tempFuel = "- ";
+            for (int i = 0; i < reactants.Length; i++)
+            {
+                if (i != 0)
+                    tempFuel += " and ";
+                tempFuel += reactants[i].SubstancePhase.Name;  // Actual reactant name
+            }
+
+            if(!fuelTypes.Contains(tempFuel))
+                fuelTypes.Add(tempFuel);
+        }
+
         ImGui.PushStyleColor(ImGuiCol.Text, TEXT_DIM);
         ImGui.Text($"Mass: {massStr}");
+        if(fuelTypes.Count > 0)
+        {
+            ImGui.Text("Accepted Fuels: ");
+            foreach(string fuel in fuelTypes)
+            {
+                ImGui.TextWrapped(fuel);
+            }
+        }
         ImGui.PopStyleColor();
 
         ImGui.PushStyleColor(ImGuiCol.Separator, ACCENT_BLUE);
